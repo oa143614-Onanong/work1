@@ -1,0 +1,56 @@
+import numpy as np
+import random
+# Parameters
+alpha = 0.1
+gamma = 0.9
+epsilon = 0.9
+num_episodes = 500
+# Initialize Q1 and Q2 tables
+Q1 = np.zeros((5, 2))
+Q2 = np.zeros((5, 2))
+print(Q1[0])
+# Function for epsilon-greedy policy
+def epsilon_greedy(state, epsilon):
+    if random.uniform(0, 1) < epsilon:
+        print("greedy: number less than 0.9")
+        return random.choice([0, 1])
+    else:
+        print("greedy: number greater than 0.9")
+        return np.argmax(Q1[state] + Q2[state])
+# Double Q-learning
+for episode in range(num_episodes):
+    print("episode ",episode)
+    state = 0  # Starting state
+    while state != 4:  # Until the goal state is reached
+        action = epsilon_greedy(state, epsilon)
+        print("action ", action)
+        # next_state = state + 1 if action == 1 else state - 1
+        if action == 0:
+            next_state = state - 1
+        else:
+            next_state = state + 1
+        next_state = max(0, min(4, next_state))  # Ensure next_state stays within bounds
+        print("next state", next_state)
+        reward = 1 if next_state == 4 else -1
+        print("reward is", reward)
+        if random.uniform(0, 1) < 0.5:
+            print("random less than 0.5")
+            a_prime = np.argmax(Q1[next_state])
+            Q1[state, action] += alpha * (reward + gamma * Q2[next_state, a_prime] - Q1[state, action])
+            print("Q1 state, action",state, action)
+            print("Q1[state, action]",Q1[state, action])
+            print("table Q1")
+            print(Q1)
+        else:
+            print("random greater than 0.5")
+            a_prime = np.argmax(Q2[next_state])
+            Q2[state, action] += alpha * (reward + gamma * Q1[next_state, a_prime] - Q2[state, action])
+            print("Q2 state, action",state, action)
+            print("Q2[state, action]",Q2[state, action])
+            print("table Q2")
+            print(Q2)
+        state = next_state
+
+# Final Q-values
+Q = Q1 + Q2
+print(Q)

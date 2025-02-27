@@ -1,0 +1,137 @@
+import requests
+import pandas as pd
+import numpy as np
+import random
+
+# --- Open-Meteo API Data Fetching ---
+url = "https://api.open-meteo.com/v1/forecast?latitude=13.754&longitude=100.5014&hourly=temperature_2m,soil_temperature_6cm&start_date=2025-02-04&end_date=2025-02-08"
+
+try:
+    response = requests.get(url)
+    response.raise_for_status()
+    data = response.json()
+    time_data = data['hourly']['time']
+    air_temp_data = data['hourly']['temperature_2m']
+    soil_temp_data = data['hourly']['soil_temperature_6cm']
+    df = pd.DataFrame({'time': time_data, 'air_temp': air_temp_data, 'soil_temp_6cm': soil_temp_data})
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching data: {e}")
+    exit()
+except KeyError as e:
+    print(f"Error processing data: {e}")
+    exit()
+
+# --- Double Q-Learning Controller (Simulation) ---
+
+Cstore = 1.0
+Vmax = 5.0
+Vout = 3.0
+Emax = 0.5 * Cstore * (Vmax ** 2)
+Emin = 0.5 * Cstore * (Vout ** 2)
+#print(Emin)
+actions = [720, 480, 240, 120, 60, 10]
+num_actions = len(actions)
+num_states = 6
+
+def calculate_soes(Estore):
+    if Estore < Emin:
+        return 0
+    else:
+        return (Estore - Emin) / (Emax - Emin)
+
+def determine_state(soes):
+    for i in range(1, num_states + 1):
+        if (i - 1) / num_states <= soes < i / num_states:
+            return i - 1
+    return num_states - 1
+
+def generate_energy(air_temp, soil_temp):
+    temp_diff = abs(air_temp - soil_temp)
+    energy = temp_diff * 0.1
+    return energy
+
+q_table1 = np.zeros((num_states, num_actions))
+q_table2 = np.zeros((num_states, num_actions))
+gamma = 0.8
+alpha = 0.3
+epsilon = 0.02
+
+energy_store = Emin + (Emax - Emin) / 2
+current_state = determine_state(calculate_soes(energy_store))
+previous_soes = calculate_soes(energy_store)
+
+action_counts = [0] * num_actions  # Initialize action counters
+#print(action_counts, "action:",actions[1])
+
+for episode in range(10):
+    #print("Trained Q-table 1:")
+    #print(q_table1)
+    #print("Trained Q-table 2:")
+    #print(q_table2)
+
+    for index, row in df.iterrows():
+        air_temp = row['air_temp']
+        soil_temp = row['soil_temp_6cm']
+        #print(air_temp)
+        #print(soil_temp)
+        if random.random() < epsilon:
+            #print("less than epsilon ")
+            action_index = random.randint(0, num_actions - 1)
+            #print("action_index:", action_index)
+        else:
+            action_index = np.argmax(q_table1[current_state] + q_table2[current_state])
+            #print("action_index:", action_index)
+        action = actions[action_index]
+        #print("action:", action)
+        generated_energy = generate_energy(air_temp, soil_temp)
+        #print("generate energy:", generated_energy)
+        consumed_energy = 0.01 + 0.005 * action
+        energy_store += generated_energy - consumed_energy
+        #print("energy store:", energy_store)
+        energy_store = np.clip(energy_store, Emin, Emax)
+        #print("energy store:", energy_store)
+        current_soes = calculate_soes(energy_store)
+        #print("current soes:", current_soes)
+        state = determine_state(current_soes)
+        #print("current soes falls in state:", state)
+
+        reward = current_soes - previous_soes
+        if reward > 0:
+            reward += 0.1 * (action / max(actions))
+        else:
+            reward = current_soes - previous_soes
+
+        next_state = determine_state(current_soes)
+
+        if random.random() < 0.5:
+            a_prime = np.argmax(q_table1[next_state])
+            #print("a_primt of A:", a_prime)
+            q_table1[current_state, action_index] += alpha * (
+                reward + gamma * q_table2[next_state, a_prime] - q_table1[current_state, action_index]
+            )
+        else:
+            a_prime = np.argmax(q_table2[next_state])
+            #print("a_primt of B:", a_prime)
+            q_table2[current_state, action_index] += alpha * (
+                reward + gamma * q_table1[next_state, a_prime] - q_table2[current_state, action_index]
+            )
+        #print("Trained Q-table 1:")
+        #print(q_table1)
+        #print("Trained Q-table 2:")
+        #print(q_table2)
+
+        action_counts[action_index] += 1  # Increment action count
+        #print(action_counts)
+        previous_state = current_state
+        current_state = next_state
+        previous_soes = current_soes
+
+print("Combined Q-table:")
+print(q_table1 + q_table2)
+print("Action Counts:")
+for i, count in enumerate(action_counts):
+    print("Action:", actions[i],":", count ,"times")
+
+
+
+    

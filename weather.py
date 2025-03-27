@@ -93,7 +93,7 @@ def calculate_and_plot_graph_hourly_diffs(df, var1, var2):
 
     diff_var = f"{var2}_diff_to_{var1}"
     df[diff_var] = df[var2] - df[var1]
-
+    print(df[diff_var])
     plt.figure(figsize=(10, 6))
     plt.plot(df['time'], df[diff_var], marker='o', linestyle='-')
     plt.title(f"Hourly Temperature Difference: {var2} - {var1}")
@@ -108,6 +108,115 @@ def calculate_and_plot_graph_hourly_diffs(df, var1, var2):
     plt.axhline(0, color='red', linestyle='--')
     plt.show()
 
+
+
+def find_Hmm_2group(df, var1, var2):
+    """
+    Calculates the hourly difference between two variables, creates a binary list,
+    groups consecutive 1s and 0s, and plots the difference.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data.
+        var1 (str): The name of the first variable.
+        var2 (str): The name of the second variable.
+    """
+
+    if df is None:
+        print("No Dataframe to plot differences")
+        return
+
+    diff_var = f"{var2}_diff_to_{var1}"
+    df[diff_var] = df[var2] - df[var1]
+
+    # Create the binary list
+    binary_list = [1 if diff >= 1 else 0 for diff in df[diff_var]]
+    #print(f"Binary List: {binary_list}")
+
+    if not binary_list:
+        print("Empty binary list.")
+        return
+
+    groups = []
+    current_group = []
+    current_value = binary_list[0]
+
+    for value in binary_list:
+        if value == current_value:
+            current_group.append(value)
+        else:
+            groups.append(current_group)
+            current_group = [value]
+            current_value = value
+
+    groups.append(current_group)  # Add the last group
+
+    group_lengths = [len(group) for group in groups]
+
+    group_1_lengths = []
+    group_0_lengths = []
+
+    for i in range(len(groups)):
+        if groups[i][0] == 1:
+            group_1_lengths.append(group_lengths[i])
+        else:
+            group_0_lengths.append(group_lengths[i])
+
+    # print(f"Group 1 Lengths: {group_1_lengths}")
+    # print(f"Group 0 Lengths: {group_0_lengths}")
+
+    # Calculate the means
+    mean_group_1 = sum(group_1_lengths) / len(group_1_lengths) if group_1_lengths else 0
+    mean_group_0 = sum(group_0_lengths) / len(group_0_lengths) if group_0_lengths else 0
+    std_dev_group_1 = statistics.stdev(group_1_lengths) if len(group_1_lengths) > 1 else 0
+    std_dev_group_0 = statistics.stdev(group_0_lengths) if len(group_0_lengths) > 1 else 0
+
+
+    print(f"Mean Group 1 Lengths: {mean_group_1}")
+    print(f"Mean Group 0 Lengths: {mean_group_0}")
+    print(f"Standard Deviation Group 1 Lengths: {std_dev_group_1}")
+    print(f"Standard Deviation Group 0 Lengths: {std_dev_group_0}")
+
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(df['time'], df[diff_var], marker='o', linestyle='-')
+    # plt.title(f"Hourly Temperature Difference: {var2} - {var1}")
+    # plt.xlabel("Time")
+    # plt.ylabel("Temperature Difference (°C)")
+    # plt.grid(True)
+    # plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
+    # plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    # plt.xticks(rotation=45, ha='right')
+    # plt.tight_layout()
+    # # Add horizontal line at y=0
+    # plt.axhline(0, color='red', linestyle='--')
+    # plt.show()
+
+    # Plotting Normal Distribution for group_1_lengths
+    if len(group_1_lengths) > 1:
+        plt.figure(figsize=(8, 6))
+        x = np.linspace(min(group_1_lengths), max(group_1_lengths), 100)
+        plt.plot(x, norm.pdf(x, mean_group_1, std_dev_group_1), 'r-')
+        plt.hist(group_1_lengths, density=True, alpha=0.6, color='skyblue')
+        plt.title(f"Normal Distribution (Group 1 Lengths)")
+        plt.xlabel("Length")
+        plt.ylabel("Probability Density")
+        plt.tight_layout()
+        plt.show()
+
+    # Plotting Normal Distribution for group_0_lengths
+    if len(group_0_lengths) > 1:
+        plt.figure(figsize=(8, 6))
+        x = np.linspace(min(group_0_lengths), max(group_0_lengths), 100)
+        plt.plot(x, norm.pdf(x, mean_group_0, std_dev_group_0), 'r-')
+        plt.hist(group_0_lengths, density=True, alpha=0.6, color='skyblue')
+        plt.title(f"Normal Distribution (Group 0 Lengths)")
+        plt.xlabel("Length")
+        plt.ylabel("Probability Density")
+        plt.tight_layout()
+        plt.show()
+
+
+
+    
 def calculate_and_print_hourly_diffs_grouped(df, var1, var2):
     """
     Calculates hourly temperature differences, groups them into above/equal and below 0, and calculates the mean and standard deviation for each group.
